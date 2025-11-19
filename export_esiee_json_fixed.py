@@ -21,29 +21,61 @@ SEQUENCE_DESCRIPTION = "Prise de mesures effectuée au cours d'une marche à la 
 
 
 def lire_entete(path):
+    """Lit l'en-tête OpenSignals et extrait les métadonnées.
+    
+    Retourne (fs, bits, device_id, datetime_str).
+    """
     import json as _json
-    meta = None
     fs = None
     bits = 16
+    device_id = None
+    datetime_str = None
+    
     with open(path, 'r') as f:
         for line in f:
             if line.startswith('#'):
                 if 'sampling rate' in line:
                     try:
                         obj = _json.loads(line.lstrip('#').strip())
+                        # Le premier key est le device ID
                         first_key = next(iter(obj))
+                        device_id = first_key
+                        
                         inner = obj[first_key]
                         fs = float(inner.get('sampling rate'))
                         res = inner.get('resolution')
                         if isinstance(res, list) and res:
                             bits = int(res[0])
+                        
+                        # Extraire date et time
+                        date = inner.get('date')
+                        time = inner.get('time')
+                        if date and time:
+                            # Formater: "2025-9-19" + "9:48:37.952" -> "2025-09-19 09:48:37"
+                            # Standardiser le format
+                            try:
+                                date_parts = date.split('-')
+                                if len(date_parts) == 3:
+                                    year, month, day = date_parts
+                                    date = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+                                
+                                # Garder seulement HH:MM:SS (enlever millisecondes)
+                                time_base = time.split('.')[0]
+                                time_parts = time_base.split(':')
+                                if len(time_parts) == 3:
+                                    hour, minute, second = time_parts
+                                    time_base = f"{hour.zfill(2)}:{minute.zfill(2)}:{second.zfill(2)}"
+                                
+                                datetime_str = f"{date} {time_base}"
+                            except Exception:
+                                datetime_str = f"{date} {time}" if date and time else None
                     except Exception:
                         pass
                 if '# EndOfHeader' in line:
                     break
             else:
                 break
-    return fs, bits
+    return fs, bits, device_id, datetime_str
 
 
 def charger_colonne(path, ch):
@@ -81,7 +113,12 @@ def to_acc_g(adc, cmin, cmax, full_scale_g):
 
 
 def main():
-    fs, bits = lire_entete(INPUT_PATH)
+    # Lire les métadonnées du fichier
+    fs, bits, device_id, datetime_str = lire_entete(INPUT_PATH)
+    
+    # Utiliser les valeurs extraites ou les valeurs par défaut si non trouvées
+    final_device_id = device_id if device_id else DEVICE_ID
+    final_datetime = datetime_str if datetime_str else SEQUENCE_DATETIME
 
     ch1_adc = charger_colonne(INPUT_PATH, "CH1")
     ch2_adc = charger_colonne(INPUT_PATH, "CH2")
@@ -104,11 +141,11 @@ def main():
         data_rows.append([i, acc_vertical[i], acc_horizontal[i], resp_thorax[i], resp_abdomen[i]])
 
     out = {
-        "deviceId": DEVICE_ID,
+        "deviceId": final_device_id,
         "studentId": STUDENT_ID,
         "sessionId": SESSION_ID,
         "sequenceId": SEQUENCE_ID,
-        "sequenceStartDateTime": SEQUENCE_DATETIME,
+        "sequenceStartDateTime": final_datetime,
         "sequenceContext": SEQUENCE_CONTEXT,
         "sequenceDescription": SEQUENCE_DESCRIPTION,
         "sequenceStructure": [
