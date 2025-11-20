@@ -177,7 +177,9 @@ def visualize_comparison(indicators, my_id):
         # On continue quand même pour afficher les données des autres si elles existent
     
     # Regrouper par contexte pour la comparaison (ex: MARCHE, MONTEE)
-    contexts = sorted(set(d['context'] for d in indicators))
+    # Exclure APNEE et REPOS des graphiques
+    all_contexts = sorted(set(d['context'] for d in indicators))
+    contexts = [ctx for ctx in all_contexts if ctx.upper() not in ['APNEE', 'REPOS']]
     
     # === GRAPHIQUE 1: Comparaison Multi-Contextes ===
     if len(contexts) > 1 and my_data:
@@ -194,6 +196,16 @@ def visualize_comparison(indicators, my_id):
         my_eff_by_ctx = []
         avg_eff_by_ctx = []
         
+        # Calculer le facteur de normalisation global pour l'indice d'activité
+        all_my_act = [d['activity_index'] for d in my_data]
+        all_others_act = [d['activity_index'] for d in others_data]
+        global_scale_factor = 1.0
+        if all_my_act and all_others_act:
+            avg_my_global = np.mean(all_my_act)
+            avg_others_global = np.mean(all_others_act)
+            if avg_my_global > 0:
+                global_scale_factor = avg_others_global / avg_my_global
+        
         for ctx in contexts:
             my_ctx = [d for d in my_data if d['context'] == ctx]
             others_ctx = [d for d in others_data if d['context'] == ctx]
@@ -201,7 +213,9 @@ def visualize_comparison(indicators, my_id):
             my_bpm_by_ctx.append(np.mean([d['bpm'] for d in my_ctx]) if my_ctx else 0)
             avg_bpm_by_ctx.append(np.mean([d['bpm'] for d in others_ctx]) if others_ctx else 0)
             
-            my_act_by_ctx.append(np.mean([d['activity_index'] for d in my_ctx]) if my_ctx else 0)
+            # Normaliser l'indice d'activité pour la visualisation
+            my_act_raw = np.mean([d['activity_index'] for d in my_ctx]) if my_ctx else 0
+            my_act_by_ctx.append(my_act_raw * global_scale_factor)
             avg_act_by_ctx.append(np.mean([d['activity_index'] for d in others_ctx]) if others_ctx else 0)
             
             my_ratio_by_ctx.append(np.mean([d['thorax_abdomen_ratio'] for d in my_ctx]) if my_ctx else 0)
@@ -305,37 +319,77 @@ def visualize_comparison(indicators, my_id):
         print(f"  {'-'*58}")
         
         # Graphiques détaillés pour ce contexte
-        fig, axs = plt.subplots(2, 2, figsize=(16, 12))
+        fig, axs = plt.subplots(2, 2, figsize=(18, 12))
         fig.suptitle(f'Analyse Détaillée : {context}', fontsize=16, fontweight='bold')
         
         # Plot 1: Scatter (Activité vs BPM)
+        # Calculer le facteur de normalisation pour l'indice d'activité
+        scale_factor = 1.0
+        if others_subset and my_subset:
+            avg_others_act = np.mean([d['activity_index'] for d in others_subset])
+            avg_my_act = np.mean([d['activity_index'] for d in my_subset])
+            if avg_my_act > 0:
+                scale_factor = avg_others_act / avg_my_act
+        
+        # Grouper les autres étudiants par ID
         if others_subset:
-            axs[0, 0].scatter([d['activity_index'] for d in others_subset], 
-                             [d['bpm'] for d in others_subset], 
-                             color='gray', alpha=0.6, label='Autres étudiants', s=50)
+            students_dict = {}
+            for d in others_subset:
+                student_id = d['student_id']
+                if student_id not in students_dict:
+                    students_dict[student_id] = []
+                students_dict[student_id].append(d)
+            
+            # Utiliser une palette de couleurs pour chaque étudiant
+            colors = plt.cm.tab20(np.linspace(0, 1, len(students_dict)))
+            for idx, (student_id, student_data) in enumerate(students_dict.items()):
+                act_values = [d['activity_index'] for d in student_data]
+                bpm_values = [d['bpm'] for d in student_data]
+                label = f'{student_id} (Etudiant {idx + 1})'
+                axs[0, 0].scatter(act_values, bpm_values, 
+                                 color=colors[idx], alpha=0.7, label=label, s=50)
+        
         if my_subset:
-            axs[0, 0].scatter([d['activity_index'] for d in my_subset], 
+            # Normaliser les valeurs d'activité pour la visualisation
+            my_act_normalized = [d['activity_index'] * scale_factor for d in my_subset]
+            axs[0, 0].scatter(my_act_normalized, 
                              [d['bpm'] for d in my_subset], 
-                             color='red', label='Moi', s=200, marker='*', edgecolors='black', linewidths=2)
+                             color='red', label=f'{my_id} (moi)', s=200, marker='*', edgecolors='black', linewidths=2)
         axs[0, 0].set_xlabel('Indice d\'Activité')
         axs[0, 0].set_ylabel('Fréquence Respiratoire (BPM)')
         axs[0, 0].set_title('Relation Activité vs Respiration')
-        axs[0, 0].legend()
+        axs[0, 0].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
         axs[0, 0].grid(True, linestyle='--', alpha=0.5)
         
         # Plot 2: Scatter (Efficacité Respiratoire)
+        # Utiliser le même facteur de normalisation
         if others_subset:
-            axs[0, 1].scatter([d['activity_index'] for d in others_subset], 
-                             [d['respiratory_efficiency'] for d in others_subset], 
-                             color='gray', alpha=0.6, label='Autres étudiants', s=50)
+            students_dict_2 = {}
+            for d in others_subset:
+                student_id = d['student_id']
+                if student_id not in students_dict_2:
+                    students_dict_2[student_id] = []
+                students_dict_2[student_id].append(d)
+            
+            # Utiliser une palette de couleurs pour chaque étudiant
+            colors_2 = plt.cm.tab20(np.linspace(0, 1, len(students_dict_2)))
+            for idx, (student_id, student_data) in enumerate(students_dict_2.items()):
+                act_values_2 = [d['activity_index'] for d in student_data]
+                eff_values = [d['respiratory_efficiency'] for d in student_data]
+                label = f'{student_id} (Etudiant {idx + 1})'
+                axs[0, 1].scatter(act_values_2, eff_values, 
+                                 color=colors_2[idx], alpha=0.7, label=label, s=50)
+        
         if my_subset:
-            axs[0, 1].scatter([d['activity_index'] for d in my_subset], 
+            # Normaliser les valeurs d'activité pour la visualisation
+            my_act_normalized_2 = [d['activity_index'] * scale_factor for d in my_subset]
+            axs[0, 1].scatter(my_act_normalized_2, 
                              [d['respiratory_efficiency'] for d in my_subset], 
-                             color='red', label='Moi', s=200, marker='*', edgecolors='black', linewidths=2)
+                             color='red', label=f'{my_id} (moi)', s=200, marker='*', edgecolors='black', linewidths=2)
         axs[0, 1].set_xlabel('Indice d\'Activité')
         axs[0, 1].set_ylabel('Efficacité (BPM/Activité)')
         axs[0, 1].set_title('Efficacité Respiratoire (Plus bas = Meilleur)')
-        axs[0, 1].legend()
+        axs[0, 1].legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
         axs[0, 1].grid(True, linestyle='--', alpha=0.5)
         
         # Plot 3: Histogramme comparatif des Ratios Thorax/Abdomen
