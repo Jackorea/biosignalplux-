@@ -6,25 +6,6 @@ Ce projet contient une suite d'outils Python pour le traitement et l'analyse de 
 
 ### Fichiers Principaux
 
-#### `extraire_donnees_numeriques.py`
-**Description** : Extrait les colonnes CH3 et CH4 (données de respiration) d'un fichier OpenSignals et les sauvegarde dans un fichier texte séparé.
-
-**Fonctionnalités** :
-- Lit un fichier OpenSignals (.txt)
-- Extrait les colonnes de respiration (par défaut CH3 et CH4, personnalisables dans le code)
-- Conserve l'en-tête du fichier original
-- Génère un fichier de sortie avec les données de respiration
-
-**Utilisation** :
-```python
-# Modifier les variables dans le script pour personnaliser :
-input_file = "SeongjagMarche (1).txt"
-output_file = "donnees_respiration.txt"
-# Les colonnes à extraire peuvent être modifiées dans le code (actuellement CH3 et CH4)
-```
-
----
-
 #### `filtrage.py`
 **Description** : Implémente un filtrage hybride en deux étapes pour nettoyer les signaux respiratoires : compression douce (soft clipping) suivie d'un filtre Butterworth passe-bande.
 
@@ -191,20 +172,6 @@ python workflow_segment/segment_to_esiee_json.py \
 8. [post_traitement.py] Analyse comparative et visualisation
 ```
 
-### Workflow Alternatif : Extraction et Filtrage
-
-```
-1. Fichier OpenSignals brut
-   ↓
-2. [extraire_donnees_numeriques.py] Extraction CH3/CH4
-   ↓
-3. Fichier respiration (ex: "donnees_respiration.txt")
-   ↓
-4. [filtrage.py] Filtrage hybride et visualisation
-   ↓
-5. Graphiques d'analyse (temporel, spectrogramme, FFT)
-```
-
 ---
 
 ## 📋 Exemples de Commandes
@@ -236,14 +203,7 @@ python workflow_segment/segment_to_esiee_json.py \
   --sequence-description "Marche sur la rue de l'ESIEE"
 ```
 
-### 3. Extraction de données de respiration
-
-```python
-# Modifier les variables dans extraire_donnees_numeriques.py puis exécuter :
-python extraire_donnees_numeriques.py
-```
-
-### 4. Filtrage et visualisation
+### 3. Filtrage et visualisation
 
 ```bash
 # Filtrage d'un fichier mono-colonne
@@ -253,7 +213,7 @@ python filtrage.py -i donnees_respiration.txt
 python filtrage.py -i "SeongjagMarche (1).txt" -c CH3
 ```
 
-### 5. Post-traitement et analyse comparative
+### 4. Post-traitement et analyse comparative
 
 ```bash
 # Analyser les données exportées depuis le serveur
@@ -312,7 +272,6 @@ Le script `post_traitement.py` calcule les indicateurs suivants :
   - **`segment_to_esiee_json.py`** : Valeurs de calibration de l'accéléromètre (Cmin, Cmax, full scale), métadonnées par défaut (student ID, session ID, contexte, etc.)
   - **`filtrage.py`** : Plage de compression soft clipping, fréquences de coupure du filtre Butterworth, ordre du filtre
   - **`post_traitement.py`** : Plages fréquentielles pour la détection de respiration, seuils et méthodes de calcul des indicateurs
-  - **`extraire_donnees_numeriques.py`** : Colonnes à extraire (actuellement CH3 et CH4)
 
 - Les valeurs par défaut sont optimisées pour des cas d'usage typiques mais peuvent être ajustées pour différents protocoles expérimentaux ou configurations de capteurs.
 
